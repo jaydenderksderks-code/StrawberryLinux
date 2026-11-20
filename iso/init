@@ -2,11 +2,8 @@
 set -eu
 export PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
-# DEVTMPFS_MOUNT=y mounts /dev before PID 1 starts. Do not mount a
-# tmpfs over it: that would hide /dev/console and /dev/tty.
-if ! grep -q ' /dev devtmpfs ' /proc/mounts 2>/dev/null; then
-    /bin/mount -t devtmpfs devtmpfs /dev
-fi
+# DEVTMPFS_MOUNT=y mounts devtmpfs on /dev before PID 1 starts.
+# Do not mount another filesystem over it: that hides /dev/console and /dev/tty.
 
 mkdir -p /dev/pts /proc /sys /run /tmp
 /bin/mount -t proc proc /proc 2>/dev/null || true
