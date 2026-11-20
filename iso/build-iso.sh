@@ -38,7 +38,7 @@ cat > "$tmp/iso/boot/grub/grub.cfg" <<'GRUB'
 set timeout=3
 set default=0
 menuentry 'Strawberry Linux (live TTY)' {
-    linux /boot/vmlinuz console=tty0 console=ttyS0,115200n8 loglevel=4
+    linux /boot/vmlinuz init=/init console=tty0 loglevel=7 ignore_loglevel
     initrd /boot/initramfs.gz
 }
 GRUB
