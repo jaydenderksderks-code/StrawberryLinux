@@ -13,7 +13,7 @@
  STRAWBERRY LINUX
 ```
 
-Strawberry Linux is an experimental, TTY-first Linux From Scratch distribution project. The initial repository builds a pinned Linux kernel and provides early root filesystem customization, a guarded `rm` command, and CI regression tests. It does **not** yet build a bootable operating system.
+Strawberry Linux is an experimental, TTY-first Linux distribution project inspired by Linux From Scratch. The repository currently builds a minimal BusyBox-based live environment with a pinned Linux kernel, initramfs, GRUB BIOS/UEFI boot media, and automated QEMU boot smoke tests. It is an early live-system prototype, not yet a complete LFS installation or general-purpose operating system.
 
 ## Architecture and scope
 
@@ -49,6 +49,9 @@ chmod +x build.sh kernel/configure.sh rootfs/usr/local/bin/rm tests/test-rm.py
 ./build.sh i686 tty
 ./build.sh x86_64 graphics
 python3 tests/test-rm.py
+
+# Build the x86_64 live TTY ISO (requires the ISO build dependencies)
+./iso/build-iso.sh x86_64
 ```
 
 `STRAWBERRY_WORK` overrides the default `work/` directory. Build output is written to `kernel/artifacts/<cpu>/<ui>/` and contains the kernel image, kernel `.config`, source tarball SHA-256 digest, and `SHA256SUMS` for produced artifacts.
