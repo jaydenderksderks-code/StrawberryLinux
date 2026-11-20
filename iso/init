@@ -1,14 +1,22 @@
 #!/bin/sh
 set -eu
 export PATH=/sbin:/bin:/usr/sbin:/usr/bin
-/bin/mount -t devtmpfs devtmpfs /dev || /bin/mount -t tmpfs tmpfs /dev
+
+# DEVTMPFS_MOUNT=y mounts /dev before PID 1 starts. Do not mount a
+# tmpfs over it: that would hide /dev/console and /dev/tty.
+if ! grep -q ' /dev devtmpfs ' /proc/mounts 2>/dev/null; then
+    /bin/mount -t devtmpfs devtmpfs /dev
+fi
+
 mkdir -p /dev/pts /proc /sys /run /tmp
-/bin/mount -t proc proc /proc
-/bin/mount -t sysfs sysfs /sys
-/bin/mount -t devpts devpts /dev/pts || true
-/bin/mount -t tmpfs tmpfs /run || true
-/bin/mount -t tmpfs tmpfs /tmp || true
+/bin/mount -t proc proc /proc 2>/dev/null || true
+/bin/mount -t sysfs sysfs /sys 2>/dev/null || true
+/bin/mount -t devpts devpts /dev/pts 2>/dev/null || true
+/bin/mount -t tmpfs tmpfs /run 2>/dev/null || true
+/bin/mount -t tmpfs tmpfs /tmp 2>/dev/null || true
 /bin/hostname strawberry
+
 printf '\nStrawberry Linux live TTY\n'
 printf 'Temporary RAM-based environment. No installer or persistent storage.\n\n'
+
 exec /bin/setsid /bin/cttyhack /bin/sh -l
