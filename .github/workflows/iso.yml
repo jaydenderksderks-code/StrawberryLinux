@@ -32,10 +32,35 @@ jobs:
             grub-efi-amd64-bin grub-common \
             xorriso mtools dosfstools qemu-system-x86 ovmf
 
+      # Cache only verified build outputs; changes to source/config/locks
+      # produce a new cache key and trigger a fresh signed kernel build.
+      - name: Restore cached Linux kernel
+        id: kernel-cache
+        uses: actions/cache@v4
+        with:
+          path: kernel/artifacts/x86_64/tty
+          key: strawberry-kernel-x86_64-tty-v1-${{ hashFiles('build.sh', 'kernel/configure.sh', 'locks/linux.version', 'locks/linux-signer.fingerprint') }}
+
       - name: Build Linux kernel
+        if: steps.kernel-cache.outputs.cache-hit != 'true'
         run: |
           chmod +x build.sh kernel/configure.sh
           ./build.sh x86_64 tty
+
+      - name: Verify cached or freshly built kernel
+        run: |
+          set -euo pipefail
+          version="$(cat locks/linux.version)"
+          release="${version}-strawberry"
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            release="${version}.0-strawberry"
+          fi
+          cd kernel/artifacts/x86_64/tty
+          test -s "vmlinuz-${release}"
+          test -s .config
+          test -s source-tar.sha256
+          sha256sum --check SHA256SUMS
+          echo "Verified kernel artifact: ${release}"
 
       - name: Build bootable ISO
         run: |
