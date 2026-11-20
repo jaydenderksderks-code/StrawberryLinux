@@ -9,7 +9,10 @@ trap 'rm -rf -- "$work"' EXIT
 mkdir -p "$root/dist" "$work/profile"
 cp -a /usr/share/archiso/configs/releng/. "$work/profile/"
 cp -a "$root/iso/profile/." "$work/profile/"
+cat /usr/share/archiso/configs/releng/packages.x86_64 "$root/iso/profile/packages.x86_64" | sort -u > "$work/profile/packages.x86_64"
 cp -a "$root/rootfs/." "$work/profile/airootfs/"
+install -d "$work/profile/airootfs/usr/share/strawberry/install-overlay"
+cp -a "$root/rootfs/." "$work/profile/airootfs/usr/share/strawberry/install-overlay/"
 # The stock releng profile supplies tested bootloader entries for BIOS and UEFI.
 # Remove stock releng customizations that conflict with Strawberry's identity.
 rm -f "$work/profile/airootfs/etc/motd"
