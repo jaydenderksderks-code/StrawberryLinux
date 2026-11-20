@@ -10,6 +10,7 @@ on:
       - '.github/workflows/iso.yml'
 jobs:
   build:
+    timeout-minutes: 180
     runs-on: ubuntu-latest
     container:
       image: archlinux:latest
