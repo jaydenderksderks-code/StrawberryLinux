@@ -88,6 +88,10 @@ genfstab -U /mnt >> /mnt/etc/fstab
 src=/usr/share/strawberry/install-overlay
 [[ -d "$src" ]] || die 'Strawberry install overlay missing'
 cp -a "$src/." /mnt/
+chmod 0440 /mnt/etc/sudoers.d/10-strawberry-path
+if [[ "$desktop" != "No desktop — pure TTY" && -f /usr/share/strawberry/strawberry-de.png ]]; then
+  install -Dm644 /usr/share/strawberry/strawberry-de.png /mnt/usr/share/pixmaps/strawberry-linux.png
+fi
 rm -f /mnt/etc/systemd/system/getty@tty1.service.d/autologin.conf
 rm -f /mnt/etc/systemd/system/multi-user.target.wants/strawberry-live.service
 rm -f /mnt/etc/systemd/system/strawberry-live.service
@@ -99,9 +103,9 @@ arch-chroot /mnt passwd root
 echo "Set password for $username:"
 arch-chroot /mnt passwd "$username"
 arch-chroot /mnt systemctl enable NetworkManager.service
-arch-chroot /mnt systemctl enable systemd-zram-setup@zram0.service
+# zram-generator automatically activates zram at boot.
 arch-chroot /mnt grub-install --target=i386-pc "$disk"
-arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Strawberry --removable
+arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Strawberry --removable --no-nvram
 arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
 echo 'Installation finished. Unmounting target.'
 umount -R /mnt
