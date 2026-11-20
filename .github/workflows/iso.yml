@@ -1,124 +1,28 @@
-
 name: Build Strawberry ISO
-
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
       - 'build.sh'
-      - 'kernel/**'
       - 'iso/**'
-      - '.github/workflows/iso.yml'
-      - 'locks/**'
       - 'rootfs/**'
-
+      - '.github/workflows/iso.yml'
 jobs:
   build:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 180
-
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
     steps:
-      - name: Checkout Strawberry Linux
-        uses: actions/checkout@v4
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential bc bison flex libssl-dev \
-            libelf-dev dwarves xz-utils gnupg curl \
-            cpio gzip busybox-static grub-pc-bin \
-            grub-efi-amd64-bin grub-common \
-            xorriso mtools dosfstools qemu-system-x86 ovmf
-
-      # Cache only verified build outputs; changes to source/config/locks
-      # produce a new cache key and trigger a fresh signed kernel build.
-      - name: Restore cached Linux kernel
-        id: kernel-cache
-        uses: actions/cache@v4
-        with:
-          path: kernel/artifacts/x86_64/tty
-          key: strawberry-kernel-x86_64-tty-v1-${{ hashFiles('build.sh', 'kernel/configure.sh', 'locks/linux.version', 'locks/linux-signer.fingerprint') }}
-
-      - name: Build Linux kernel
-        if: steps.kernel-cache.outputs.cache-hit != 'true'
-        run: |
-          chmod +x build.sh kernel/configure.sh
-          ./build.sh x86_64 tty
-
-      - name: Verify cached or freshly built kernel
-        run: |
-          set -euo pipefail
-          version="$(cat locks/linux.version)"
-          release="${version}-strawberry"
-          if [[ "$version" =~ ^[0-9]+\.[0-9]+$ ]]; then
-            release="${version}.0-strawberry"
-          fi
-          cd kernel/artifacts/x86_64/tty
-          test -s "vmlinuz-${release}"
-          test -s .config
-          test -s source-tar.sha256
-          sha256sum --check SHA256SUMS
-          echo "Verified kernel artifact: ${release}"
-
-      - name: Build bootable ISO
-        run: |
-          chmod +x iso/build-iso.sh iso/init
-          ./iso/build-iso.sh x86_64
-
-      - name: Smoke-test BIOS and UEFI boot in QEMU
-        shell: bash
-        run: |
-          set -euo pipefail
-          iso="$(find dist -maxdepth 1 -name '*.iso' -print -quit)"
-          test -n "$iso"
-
-          run_boot_test() {
-            local mode="$1"
-            shift
-            local log="dist/qemu-${mode}.log"
-            set +e
-            timeout 45s qemu-system-x86_64 -m 512 -cdrom "$iso" -boot d \
-              -display none -serial "file:$log" -monitor none -no-reboot "$@"
-            local status=$?
-            set -e
-            if [[ "$status" -ne 0 && "$status" -ne 124 ]]; then
-              cat "$log"
-              echo "QEMU ${mode} boot failed with status $status" >&2
-              return 1
-            fi
-            if ! grep -Fq "Strawberry Linux live TTY" "$log"; then
-              cat "$log"
-              echo "Strawberry live userspace did not start in ${mode} mode" >&2
-              return 1
-            fi
-            echo "QEMU ${mode} boot reached Strawberry live TTY"
-          }
-
-          run_boot_test bios
-
-          # Use a matching OVMF firmware pair. Avoid randomly selecting
-          # Secure Boot firmware, which cannot boot unsigned GRUB.
-          if [[ -f /usr/share/OVMF/OVMF_CODE_4M.fd && -f /usr/share/OVMF/OVMF_VARS_4M.fd ]]; then
-            code=/usr/share/OVMF/OVMF_CODE_4M.fd
-            vars=/usr/share/OVMF/OVMF_VARS_4M.fd
-          else
-            code=/usr/share/OVMF/OVMF_CODE.fd
-            vars=/usr/share/OVMF/OVMF_VARS.fd
-          fi
-          test -s "$code" && test -s "$vars"
-          echo "Using UEFI firmware: $code"
-          cp "$vars" dist/OVMF_VARS.fd
-          run_boot_test uefi \
-            -drive "if=pflash,format=raw,readonly=on,file=$code" \
-            -drive "if=pflash,format=raw,file=dist/OVMF_VARS.fd"
-
-      - name: Upload Strawberry Linux ISO
+      - uses: actions/checkout@v4
+      - name: Install archiso tools
+        run: pacman -Sy --noconfirm archlinux-keyring && pacman -Syu --noconfirm archiso squashfs-tools arch-install-scripts git
+      - name: Build ISO
+        run: bash build.sh x86_64
+      - name: Upload ISO
         uses: actions/upload-artifact@v4
         with:
-          name: strawberry-linux-x86_64-tty
-          path: |
-            dist/*.iso
-            dist/SHA256SUMS
+          name: strawberry-linux-arch-x86_64
+          path: dist/*.iso
           if-no-files-found: error

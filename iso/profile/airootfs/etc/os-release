@@ -1,0 +1,7 @@
+NAME="Strawberry Linux"
+PRETTY_NAME="Strawberry Linux (Arch-based)"
+ID=strawberry
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="0;31"
+HOME_URL="https://github.com/jaydenderksderks-code/StrawberryLinux"

@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+set -euo pipefail
+red=$'\033[1;31m'; reset=$'\033[0m'
+die() { printf '%sError: %s%s\n' "$red" "$*" "$reset" >&2; exit 1; }
+[[ $EUID -eq 0 ]] || die 'Run berryinstall as root'
+[[ -e /run/strawberry/live ]] || die 'Installer only runs in Strawberry live environment'
+for cmd in pacstrap arch-chroot genfstab lsblk findmnt wipefs sgdisk mkfs.ext4 mkfs.fat mount umount blkid grub-install grub-mkconfig; do
+  command -v "$cmd" >/dev/null || die "Missing $cmd"
+done
+printf '%sStrawberry Linux Installer%s\n' "$red" "$reset"
+echo 'WARNING: Installation permanently erases the selected disk.'
+echo 'Available disks:'
+lsblk -dpo NAME,SIZE,MODEL,TYPE | grep -E 'disk|NAME' || true
+read -r -p 'Target disk (absolute /dev path): ' disk
+[[ "$disk" == /dev/* && -b "$disk" ]] || die 'Invalid disk'
+disk=$(readlink -f -- "$disk")
+[[ $(lsblk -dnro TYPE "$disk") == disk ]] || die 'Select a whole disk'
+# Reject live boot devices and any mounted partitions of the target disk.
+while read -r dev; do
+  [[ -z "$dev" ]] && continue
+  if findmnt -rn -S "$dev" >/dev/null; then die "Disk contains mounted device $dev"; fi
+done < <(lsblk -nrpo NAME "$disk")
+live_source=$(findmnt -nro SOURCE /run/archiso/bootmnt 2>/dev/null || true)
+if [[ -n "$live_source" ]]; then
+  live_parent=$(lsblk -no PKNAME "$live_source" 2>/dev/null || true)
+  [[ "$live_source" != "$disk" && "/dev/$live_parent" != "$disk" ]] || die 'Cannot erase live boot medium'
+fi
+echo 'Desktop choices (TTY is the lightweight default):'
+options=('No desktop — pure TTY' i3 Sway Openbox Fluxbox IceWM JWM dwm AwesomeWM bspwm Hyprland LXQt LXDE Xfce MATE Trinity 'KDE Plasma' GNOME Cinnamon Budgie Deepin UKUI Pantheon COSMIC)
+for i in "${!options[@]}"; do printf '%2d) %s\n' "$i" "${options[i]}"; done
+read -r -p 'Selection [0]: ' choice
+choice=${choice:-0}
+[[ "$choice" =~ ^[0-9]+$ ]] && (( choice < ${#options[@]} )) || die 'Invalid desktop choice'
+desktop=${options[choice]}
+packages=(base linux linux-firmware sudo grub efibootmgr networkmanager zram-generator fastfetch git base-devel)
+case "$desktop" in
+  'No desktop — pure TTY') ;;
+  i3) packages+=(i3-wm xorg-server xorg-xinit);;
+  Sway) packages+=(sway);;
+  Openbox) packages+=(openbox xorg-server xorg-xinit);;
+  Fluxbox) packages+=(fluxbox xorg-server xorg-xinit);;
+  IceWM) packages+=(icewm xorg-server xorg-xinit);;
+  JWM) packages+=(jwm xorg-server xorg-xinit);;
+  dwm) packages+=(dwm xorg-server xorg-xinit);;
+  AwesomeWM) packages+=(awesome xorg-server xorg-xinit);;
+  bspwm) packages+=(bspwm sxhkd xorg-server xorg-xinit);;
+  Hyprland) packages+=(hyprland);;
+  LXQt) packages+=(lxqt sddm);;
+  LXDE) packages+=(lxde lxdm);;
+  Xfce) packages+=(xfce4 lightdm lightdm-gtk-greeter);;
+  MATE) packages+=(mate mate-extra lightdm lightdm-gtk-greeter);;
+  'KDE Plasma') packages+=(plasma-meta sddm);;
+  GNOME) packages+=(gnome gdm);;
+  Cinnamon) packages+=(cinnamon lightdm lightdm-gtk-greeter);;
+  Budgie) packages+=(budgie-desktop gdm);;
+  *) die "$desktop is not packaged in the configured Arch repositories; choose a supported desktop";;
+esac
+if [[ "$desktop" != 'No desktop — pure TTY' ]]; then
+  echo 'Desktop RAM warning: 128 MiB is not enough for a graphical session.'
+  echo 'Lightweight WMs often need 512 MiB+, full desktops commonly 2 GiB+.'
+fi
+read -r -p 'Hostname [strawberry]: ' hostname
+hostname=${hostname:-strawberry}
+[[ "$hostname" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || die 'Invalid hostname'
+read -r -p 'Username: ' username
+[[ "$username" =~ ^[a-z_][a-z0-9_-]{0,31}$ && "$username" != root ]] || die 'Invalid username'
+echo "Selected disk: $disk; desktop: $desktop; hostname: $hostname; user: $username"
+read -r -p "Type ERASE $disk to continue: " confirm
+[[ "$confirm" == "ERASE $disk" ]] || die 'Cancelled'
+# GPT with UEFI ESP and BIOS boot partition, followed by ext4 root.
+sgdisk --zap-all "$disk"
+sgdisk -n 1:1MiB:+2MiB -t 1:ef02 -c 1:BIOSBOOT "$disk"
+sgdisk -n 2:0:+512MiB -t 2:ef00 -c 2:EFI "$disk"
+sgdisk -n 3:0:0 -t 3:8300 -c 3:STRAWBERRY "$disk"
+partprobe "$disk"
+udevadm settle
+mapfile -t parts < <(lsblk -nrpo NAME,TYPE "$disk" | awk '$2=="part"{print $1}')
+(( ${#parts[@]} == 3 )) || die 'Partition discovery failed'
+mkfs.fat -F32 "${parts[1]}"
+mkfs.ext4 -F "${parts[2]}"
+mount "${parts[2]}" /mnt
+trap 'umount -R /mnt 2>/dev/null || true' EXIT
+mkdir -p /mnt/boot/efi
+mount "${parts[1]}" /mnt/boot/efi
+pacstrap -K /mnt "${packages[@]}"
+genfstab -U /mnt >> /mnt/etc/fstab
+# Overlay only Strawberry-owned files, never the live OS tree.
+src=/usr/share/strawberry/install-overlay
+[[ -d "$src" ]] || die 'Strawberry install overlay missing'
+cp -a "$src/." /mnt/
+rm -f /mnt/etc/systemd/system/getty@tty1.service.d/autologin.conf
+rm -f /mnt/etc/systemd/system/multi-user.target.wants/strawberry-live.service
+rm -f /mnt/etc/systemd/system/strawberry-live.service
+rm -f /mnt/run/strawberry/live
+printf '%s\n' "$hostname" > /mnt/etc/hostname
+arch-chroot /mnt useradd -m -G wheel -s /bin/bash "$username"
+echo 'Set root password:'
+arch-chroot /mnt passwd root
+echo "Set password for $username:"
+arch-chroot /mnt passwd "$username"
+arch-chroot /mnt systemctl enable NetworkManager.service
+arch-chroot /mnt systemctl enable systemd-zram-setup@zram0.service
+arch-chroot /mnt grub-install --target=i386-pc "$disk"
+arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Strawberry --removable
+arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
+echo 'Installation finished. Unmounting target.'
+umount -R /mnt
+trap - EXIT

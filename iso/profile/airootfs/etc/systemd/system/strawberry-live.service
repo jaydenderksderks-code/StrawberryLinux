@@ -1,0 +1,10 @@
+[Unit]
+Description=Mark Strawberry live session
+Before=getty@tty1.service
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/mkdir -p /run/strawberry
+ExecStart=/usr/bin/touch /run/strawberry/live
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target

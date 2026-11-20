@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+red=$'\033[1;31m'; reset=$'\033[0m'
+help() {
+  printf '%sStrawberry package manager%s\n' "$red" "$reset"
+  printf 'str- I <package>  install official package\nstr- R <package>  remove package\nstr- U            upgrade system\nstr- S <term>     search packages\nstr- Q            list installed packages\nstr- C <AUR URL>  build/install AUR package as regular user\nstr- help         show help\n'
+}
+action=${1:-help}; shift || true
+case "$action" in
+  I) (( $# )) || { help; exit 2; }; exec sudo pacman -S --needed -- "$@";;
+  R) (( $# )) || { help; exit 2; }; exec sudo pacman -Rns -- "$@";;
+  U) (( $# == 0 )) || exit 2; exec sudo pacman -Syu;;
+  S) (( $# )) || { help; exit 2; }; exec pacman -Ss -- "$@";;
+  Q) (( $# == 0 )) || exit 2; exec pacman -Q;;
+  C)
+    (( $# == 1 )) || { help; exit 2; }
+    [[ $EUID -ne 0 ]] || { echo 'AUR builds must run as an unprivileged user' >&2; exit 1; }
+    [[ "$1" =~ ^https://aur\.archlinux\.org/([A-Za-z0-9@._+-]+)(\.git)?/?$ ]] || { echo 'Expected an aur.archlinux.org package URL' >&2; exit 2; }
+    name=${BASH_REMATCH[1]%.git}
+    work=$(mktemp -d)
+    trap 'rm -rf -- "$work"' EXIT
+    git clone --depth 1 "https://aur.archlinux.org/${name}.git" "$work/pkg"
+    cd "$work/pkg"
+    printf '%sInspect PKGBUILD before proceeding: %s%s\n' "$red" "$work/pkg/PKGBUILD" "$reset"
+    less PKGBUILD
+    read -r -p 'Build and install this AUR package? [y/N] ' answer
+    [[ "$answer" == y ]] || exit 1
+    exec makepkg -si
+    ;;
+  help|-h|--help) help;;
+  *) help; exit 2;;
+esac
