@@ -1,0 +1,43 @@
+
+name: Build Strawberry ISO
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout Strawberry Linux
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc bison flex libssl-dev \
+            libelf-dev dwarves xz-utils gnupg curl \
+            cpio gzip busybox-static grub-pc-bin \
+            grub-efi-amd64-bin grub-common \
+            xorriso mtools dosfstools
+
+      - name: Build Linux kernel
+        run: |
+          chmod +x build.sh kernel/configure.sh
+          ./build.sh x86_64 tty
+
+      - name: Build bootable ISO
+        run: |
+          chmod +x iso/build-iso.sh iso/init
+          ./iso/build-iso.sh x86_64
+
+      - name: Upload Strawberry Linux ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: strawberry-linux-x86_64-tty
+          path: |
+            dist/*.iso
+            dist/SHA256SUMS
+          if-no-files-found: error
