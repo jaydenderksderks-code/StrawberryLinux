@@ -13,6 +13,7 @@ cat /usr/share/archiso/configs/releng/packages.x86_64 "$root/iso/profile/package
 cp -a "$root/rootfs/." "$work/profile/airootfs/"
 install -d "$work/profile/airootfs/usr/share/strawberry/install-overlay"
 cp -a "$root/rootfs/." "$work/profile/airootfs/usr/share/strawberry/install-overlay/"
+install -Dm644 "$root/iso/profile/airootfs/etc/systemd/zram-generator.conf" "$work/profile/airootfs/usr/share/strawberry/install-overlay/etc/systemd/zram-generator.conf"
 # The stock releng profile supplies tested bootloader entries for BIOS and UEFI.
 # Remove stock releng customizations that conflict with Strawberry's identity.
 rm -f "$work/profile/airootfs/etc/motd"
