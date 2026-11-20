@@ -3,6 +3,15 @@ name: Build Strawberry ISO
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'build.sh'
+      - 'kernel/**'
+      - 'iso/**'
+      - '.github/workflows/iso.yml'
+      - 'locks/**'
+      - 'rootfs/**'
 
 jobs:
   build:
