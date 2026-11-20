@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+PATH=/usr/bin:/bin
+export PATH
+real_rm=/bin/rm
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 131' QUIT
+trap 'exit 143' TERM
+trap 'exit 148' TSTP
+recursive=0
+operands=()
+options=()
+end_options=0
+for arg in "$@"; do
+  if (( !end_options )); then
+    case "$arg" in
+      --) end_options=1; options+=(--); continue;;
+      --recursive|-r|-R) recursive=1; options+=("$arg"); continue;;
+      --no-preserve-root|--no-preserve-root=*) echo 'rm: --no-preserve-root is forbidden' >&2; exit 2;;
+      --force|--interactive|--interactive=always|--interactive=once|--interactive=never|--one-file-system|--preserve-root|--preserve-root=all|-f|-i|-I|-v|--verbose|-d|--dir) options+=("$arg"); continue;;
+      -*)
+        if [[ "$arg" =~ ^-[fivIRrd]+$ ]]; then
+          [[ "$arg" == *r* || "$arg" == *R* ]] && recursive=1
+          options+=("$arg"); continue
+        fi
+        echo "rm: unsupported option: $arg" >&2; exit 2;;
+    esac
+  fi
+  operands+=("$arg")
+done
+if (( recursive )); then
+  dangerous=0
+  for path in "${operands[@]}"; do
+    # Both lexical normalization and canonicalization are checked. NUL
+    # termination preserves embedded newlines and trailing newline bytes.
+    IFS= read -r -d '' lexical < <(realpath -ms -z -- "$path") || { echo 'rm: path resolution failed' >&2; exit 2; }
+    IFS= read -r -d '' canonical < <(realpath -m -z -- "$path") || { echo 'rm: path resolution failed' >&2; exit 2; }
+    for resolved in "$lexical" "$canonical"; do
+      if [[ "$resolved" == / || "$resolved" == /* && "${resolved#/}" != */* ]]; then
+        dangerous=1
+      fi
+    done
+  done
+  if (( dangerous )); then
+    if ! exec 3<>/dev/tty; then echo 'rm: cannot open controlling TTY' >&2; exit 2; fi
+    for (( i=1; i<=5; i++ )); do
+      printf 'Protected recursive deletion (%d/5). Type y to continue: ' "$i" >&3
+      if ! IFS= read -r answer <&3 || [[ "$answer" != y ]]; then
+        echo 'rm: deletion aborted' >&2; exit 2
+      fi
+    done
+    exec 3>&-
+  fi
+fi
+exec "$real_rm" "${options[@]}" "${operands[@]}"
