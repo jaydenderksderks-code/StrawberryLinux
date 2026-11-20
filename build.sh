@@ -16,6 +16,7 @@ version=$(<"$root/locks/linux.version"); fingerprint=$(<"$root/locks/linux-signe
 [[ "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo 'Invalid pinned version' >&2; exit 1; }
 [[ "$fingerprint" =~ ^[A-F0-9]{40}$ ]] || { echo 'Invalid signing fingerprint' >&2; exit 1; }
 release="${version}-strawberry"
+[[ "$version" =~ ^[0-9]+\.[0-9]+$ ]] && release="${version}.0-strawberry"
 # Kernel.org publishes release signatures over the uncompressed tar stream.
 major=${version%%.*}; base="https://cdn.kernel.org/pub/linux/kernel/v${major}.x/linux-${version}.tar"
 keyurl="https://git.kernel.org/pub/scm/docs/kernel/pgpkeys.git/plain/keys/${fingerprint: -16}.asc"
