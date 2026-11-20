@@ -1,0 +1,27 @@
+
+name: Strawberry CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x build.sh kernel/configure.sh rootfs/usr/local/bin/rm tests/test-rm.py
+
+      - name: Check Bash syntax
+        run: |
+          bash -n build.sh
+          bash -n kernel/configure.sh
+          bash -n rootfs/usr/local/bin/rm
+          bash -n rootfs/etc/profile.d/strawberry.bash
+
+      - name: Run regression tests
+        run: python3 tests/test-rm.py
