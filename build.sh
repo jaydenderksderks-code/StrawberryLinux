@@ -18,7 +18,7 @@ version=$(<"$root/locks/linux.version"); fingerprint=$(<"$root/locks/linux-signe
 release="${version}-strawberry"
 # Kernel.org publishes release signatures over the uncompressed tar stream.
 major=${version%%.*}; base="https://cdn.kernel.org/pub/linux/kernel/v${major}.x/linux-${version}.tar"
-keyurl="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${fingerprint}"
+keyurl="https://git.kernel.org/pub/scm/docs/kernel/pgpkeys.git/plain/keys/${fingerprint: -16}.asc"
 tmp=$(mktemp -d "$work/.strawberry.XXXXXXXX")
 cleanup() { rm -rf -- "$tmp"; }
 trap cleanup EXIT
