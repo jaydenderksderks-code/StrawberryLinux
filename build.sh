@@ -26,7 +26,12 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 mkdir -m 700 "$tmp/gnupg"
 export GNUPGHOME="$tmp/gnupg"
-fetch() { curl --fail --location --show-error --silent --retry 3 --proto '=https' --proto-redir '=https' --output "$2" "$1"; }
+fetch() {
+  printf 'Downloading: %s\n' "$1"
+  curl --fail --location --show-error --silent --retry 3 \
+    --proto '=https' --proto-redir '=https' \
+    --output "$2" "$1"
+}
 fetch "${base}.xz" "$tmp/linux.tar.xz"
 fetch "${base}.sign" "$tmp/linux.tar.sign"
 fetch "$keyurl" "$tmp/signer.asc"
