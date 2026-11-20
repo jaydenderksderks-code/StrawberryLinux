@@ -6,7 +6,10 @@ cpu=${1:-x86_64}
 for cmd in cpio gzip grub-mkrescue xorriso install sha256sum file; do
   command -v "$cmd" >/dev/null || { echo "Missing: $cmd" >&2; exit 1; }
 done
-kernel="$root/kernel/artifacts/$cpu/tty/vmlinuz-$(cat "$root/locks/linux.version")-strawberry"
+version=$(cat "$root/locks/linux.version")
+release="${version}-strawberry"
+[[ "$version" =~ ^[0-9]+\.[0-9]+$ ]] && release="${version}.0-strawberry"
+kernel="$root/kernel/artifacts/$cpu/tty/vmlinuz-$release"
 [[ -s "$kernel" ]] || { echo "Kernel not found: $kernel. Run ./build.sh x86_64 tty first." >&2; exit 1; }
 busybox=$(command -v busybox || true)
 [[ -n "$busybox" ]] || { echo 'Install busybox-static' >&2; exit 1; }
